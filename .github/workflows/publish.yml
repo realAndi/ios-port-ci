@@ -33,6 +33,16 @@ on:
         required: false
         type: string
         default: ""
+      go-version:
+        description: "Go toolchain for build-payload.sh, e.g. 'stable'. Blank = no Go set up."
+        required: false
+        type: string
+        default: ""
+      brew-packages:
+        description: "Homebrew packages build-payload.sh needs, space separated, e.g. 'ldid'."
+        required: false
+        type: string
+        default: ""
       needs-macos:
         description: "Does build-payload.sh need the iPhoneOS SDK, ldid or Xcode?"
         required: false
@@ -109,6 +119,22 @@ jobs:
           repository: realAndi/ios-port-ci
           ref: ${{ inputs.ci-ref }}
           path: .ci
+      # A payload build needs whatever its port needs and nothing more: Go for a
+      # port that compiles, ldid for anything that has to be signed before iOS
+      # will exec it. Declared per port rather than installed unconditionally,
+      # so a port that needs neither does not pay for both.
+      - name: Set up Go
+        if: inputs.go-version != ''
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # No module cache: the sources being built are cloned inside
+          # build-payload.sh, so there is no go.sum at a fixed path to key on.
+          go-version: ${{ inputs.go-version }}
+          cache: false
+      - name: Install build tools
+        if: inputs.brew-packages != ''
+        run: brew install ${{ inputs.brew-packages }}
+
       - name: Build payload
         env:
           CI_TOOLS: ${{ github.workspace }}/.ci/tools
