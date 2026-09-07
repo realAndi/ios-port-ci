@@ -27,7 +27,7 @@ on:
         description: "Release: Description"
         required: false
         type: string
-        default: ""
+        default: "An iOS port, packaged for jailbroken devices"
       version:
         description: "Upstream version to build (blank = whatever resolve-version.sh discovers)"
         required: false
@@ -44,6 +44,11 @@ on:
         type: string
         default: |
           packaging/payload/
+      key-file:
+        description: "Filename the public key is published under, beside the index"
+        required: false
+        type: string
+        default: key.gpg
       keep:
         description: "How many published versions to carry forward, for rollback"
         required: false
@@ -153,7 +158,7 @@ jobs:
           ./tools/build-deb.sh "${{ needs.resolve.outputs.revision }}"
 
       - name: Carry forward already-published versions
-        run: .ci/tools/fetch-published.sh "${{ steps.pages.outputs.base_url }}" "${{ inputs.keep }}"
+        run: .ci/tools/fetch-published.sh "${{ steps.pages.outputs.base_url }}" "${{ inputs.keep }}" "${{ github.workspace }}/repo/debs"
 
       # Without this the index is unsigned and apt refuses it unless the source
       # line says [trusted=yes]. reallyitsandi.com pins this key's fingerprint,
@@ -175,6 +180,7 @@ jobs:
           REPO_LABEL: ${{ inputs.label || inputs.origin }}
           REPO_DESCRIPTION: ${{ inputs.description }}
           REPO_GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          REPO_KEY_FILE: ${{ inputs.key-file }}
         run: |
           cp packaging/depiction.html repo/depiction.html
           cp packaging/index.html     repo/index.html

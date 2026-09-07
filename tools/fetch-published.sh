@@ -6,11 +6,17 @@
 #   fetch-published.sh https://owner.github.io/<port>/ [keep]
 set -euo pipefail
 
-BASE="${1:?usage: $0 <repo-base-url> [keep-count]}"
+BASE="${1:?usage: $0 <repo-base-url> [keep-count] [debs-dir]}"
 KEEP="${2:-10}"
 BASE="${BASE%/}"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEBS="$ROOT/repo/debs"
+
+# Deliberately NOT derived from $0. This is a shared tool: it is checked out at
+# .ci/tools/ and run from the port's root, so "$(dirname "$0")/.." is .ci, not
+# the port. Getting that wrong drops every carried-forward .deb into
+# .ci/repo/debs while make-repo.py indexes repo/debs -- which does not fail,
+# does not warn, and quietly removes every rollback version from the published
+# index. Default to the working directory, which is the port root in CI.
+DEBS="${3:-$PWD/repo/debs}"
 mkdir -p "$DEBS"
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
