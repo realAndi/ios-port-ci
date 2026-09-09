@@ -92,20 +92,58 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       revision: ${{ steps.v.outputs.revision }}
+      build: ${{ steps.v.outputs.build }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Only for base_url, so the check below asks the same host the publish
+      # job will write to rather than guessing at github.io from the repo name.
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v5.0.0
+        id: pages
       - id: v
         env:
           WANTED: ${{ inputs.version }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ steps.pages.outputs.base_url }}
         run: |
           set -euo pipefail
           V="$(./tools/resolve-version.sh "$WANTED")"
           [ -n "$V" ] || { echo "resolve-version.sh produced nothing"; exit 1; }
+          REV="$(cat packaging/revision)"
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "revision=$(cat packaging/revision)" >> "$GITHUB_OUTPUT"
-          echo "building $V-$(cat packaging/revision)"
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
+
+          # Is there anything to do? A scheduled run that would rebuild a
+          # version-revision already on the site produces an identical package,
+          # so apt offers nobody an upgrade -- it just burns a macOS runner and
+          # redeploys Pages with a fresh signature. Skip it and the schedule can
+          # be tightened to poll for new upstream releases often, which is the
+          # point of the schedule in the first place.
+          #
+          # Only for `schedule`. A push changed the packaging and a
+          # workflow_dispatch is someone asking for a rebuild on purpose; both
+          # must build even when the version is unchanged.
+          #
+          # Fails open: if the index cannot be fetched -- first ever run, Pages
+          # down, a new port with nothing published -- there is no evidence this
+          # version exists, so build it. The wrong answer here is skipping a
+          # release, not doing redundant work.
+          BUILD=true
+          if [ "$EVENT" = "schedule" ]; then
+            if curl -fsSL --max-time 30 "${BASE%/}/Packages" 2>/dev/null \
+               | grep -qxF "Version: $V-$REV"; then
+              BUILD=false
+            fi
+          fi
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+
+          if [ "$BUILD" = true ]; then
+            echo "building $V-$REV"
+          else
+            echo "$V-$REV is already published and this is a scheduled run -- nothing to do"
+          fi
 
   payload:
+    if: needs.resolve.outputs.build == 'true' 
     # Only this job may need macOS. Building a payload is the one step that can
     # require an iPhoneOS SDK or ldid, and the one step that differs
     # fundamentally between ports; everything after it is the same job every time.
@@ -149,6 +187,7 @@ jobs:
           retention-days: 7
 
   publish:
+    if: needs.resolve.outputs.build == 'true'
     needs: [resolve, payload]
     runs-on: ubuntu-latest
     environment:
