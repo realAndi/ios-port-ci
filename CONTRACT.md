@@ -13,7 +13,14 @@ The line between them is three scripts and a few files.
 | `tools/build-deb.sh [revision]` | Linux | Assemble `repo/debs/<pkg>_<version>-<revision>_iphoneos-arm64.deb` from that payload. |
 
 Plus `packaging/revision`, `packaging/DEBIAN/{control.in,postinst,prerm}`,
-`packaging/depiction.html`, `packaging/index.html`, and `assets/icon.png`.
+`packaging/depiction.json`, `packaging/index.html`, and `assets/icon.png`.
+
+The depiction is the Sileo/Zebra native JSON format, not HTML: both managers
+render it as real UI instead of a web view, and both read it from a
+`Native-Depiction:` field in the package's control. It is validated as JSON
+during publish, because a malformed one renders as a blank page rather than an
+error. A port may also ship `packaging/depiction.html`, which is copied
+alongside for Cydia and the repo-listing sites; nothing requires it.
 
 The split is deliberate. Building the payload is the only step that needs a
 macOS runner — an iPhoneOS SDK, `ldid`, Xcode — and it is the only step that

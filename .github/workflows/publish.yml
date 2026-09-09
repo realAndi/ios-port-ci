@@ -247,7 +247,25 @@ jobs:
           REPO_GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
           REPO_KEY_FILE: ${{ inputs.key-file }}
         run: |
-          cp packaging/depiction.html repo/depiction.html
+          # depiction.json is the contract: Sileo and Zebra render the native
+          # format as real UI, where an HTML depiction is a web view inside a
+          # package manager and looks like one. depiction.html stays optional,
+          # for a port that also wants a page Cydia and the repo-listing sites
+          # can read.
+          if [ -f packaging/depiction.json ]; then
+            # A malformed depiction is not an error in either manager -- Sileo
+            # renders an empty page and says nothing -- so it has to be an error
+            # here instead.
+            python3 -m json.tool packaging/depiction.json >/dev/null
+            cp packaging/depiction.json repo/depiction.json
+          fi
+          if [ -f packaging/depiction.html ]; then
+            cp packaging/depiction.html repo/depiction.html
+          fi
+          if [ ! -f repo/depiction.json ] && [ ! -f repo/depiction.html ]; then
+            echo "::error::no packaging/depiction.json or packaging/depiction.html"
+            exit 1
+          fi
           cp packaging/index.html     repo/index.html
           python3 .ci/tools/make-repo.py repo
           ls -la repo repo/debs
