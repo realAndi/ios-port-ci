@@ -108,7 +108,20 @@ jobs:
           set -euo pipefail
           V="$(./tools/resolve-version.sh "$WANTED")"
           [ -n "$V" ] || { echo "resolve-version.sh produced nothing"; exit 1; }
-          REV="$(cat packaging/revision)"
+          # packaging/revision is either a bare number -- always applied -- or
+          # "<upstream version> <n>", where n applies only to that upstream version.
+          # The second form lets a package version track upstream exactly and grow a
+          # -n suffix only when the port actually changed something: a run that just
+          # picks up a new release publishes 2.1.267, not 2.1.267-16. When upstream
+          # moves past the recorded version the suffix drops off on its own, because
+          # the reason for it went with it.
+          read -r REV_FOR REV_N < packaging/revision || true
+          if [ -n "${REV_N:-}" ]; then
+            if [ "$REV_FOR" = "$V" ]; then REV="$REV_N"; else REV=""; fi
+          else
+            REV="${REV_FOR:-}"
+          fi
+          PKGVER="$V${REV:+-$REV}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "revision=$REV" >> "$GITHUB_OUTPUT"
 
@@ -130,16 +143,16 @@ jobs:
           BUILD=true
           if [ "$EVENT" = "schedule" ]; then
             if curl -fsSL --max-time 30 "${BASE%/}/Packages" 2>/dev/null \
-               | grep -qxF "Version: $V-$REV"; then
+               | grep -qxF "Version: $PKGVER"; then
               BUILD=false
             fi
           fi
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
 
           if [ "$BUILD" = true ]; then
-            echo "building $V-$REV"
+            echo "building $PKGVER"
           else
-            echo "$V-$REV is already published and this is a scheduled run -- nothing to do"
+            echo "$PKGVER is already published and this is a scheduled run -- nothing to do"
           fi
 
   payload:
