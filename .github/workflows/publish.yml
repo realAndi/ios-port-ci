@@ -253,6 +253,11 @@ jobs:
           # package manager and looks like one. depiction.html stays optional,
           # for a port that also wants a page Cydia and the repo-listing sites
           # can read.
+          # A leading v is a git tag convention, not part of a version, and the
+          # ports disagree about it -- gh-port's resolver echoes v2.100.0 where
+          # the others echo bare numbers. Strip it here so every depiction reads
+          # the same way and matches the version apt and Sileo display.
+          DEPICTION_VERSION="${VERSION#v}"
           if [ -f packaging/depiction.json ]; then
             # @VERSION@ becomes the upstream version being published, so a depiction
             # can state what it ships instead of carrying a number that goes stale
@@ -260,12 +265,13 @@ jobs:
             # unaffected: the substitution simply matches nothing.
             # A malformed depiction is not an error in either manager -- Sileo
             # renders an empty page and says nothing -- so it has to be an error
-            # here instead.
-            sed "s|@VERSION@|$VERSION|g" packaging/depiction.json > repo/depiction.json
+            # here instead. Validated after substitution, not before: checking the
+            # committed file proves nothing about the file that gets served.
+            sed "s|@VERSION@|$DEPICTION_VERSION|g" packaging/depiction.json > repo/depiction.json
             python3 -m json.tool repo/depiction.json >/dev/null
           fi
           if [ -f packaging/depiction.html ]; then
-            sed "s|@VERSION@|$VERSION|g" packaging/depiction.html > repo/depiction.html
+            sed "s|@VERSION@|$DEPICTION_VERSION|g" packaging/depiction.html > repo/depiction.html
           fi
           if [ ! -f repo/depiction.json ] && [ ! -f repo/depiction.html ]; then
             echo "::error::no packaging/depiction.json or packaging/depiction.html"
